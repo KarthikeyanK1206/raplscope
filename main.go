@@ -63,10 +63,21 @@ flags:
 		return 2
 	}
 
+	reader, err := DiscoverReader(*powercapPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "raplscope: %v\n", err)
+		return 1
+	}
+
+	if *list {
+		for _, d := range reader.Domains {
+			fmt.Printf("%s\t%s\tmax_energy_range %d µJ\n", d.ID, d.Name, d.MaxRangeUJ)
+		}
+		return 0
+	}
+
 	_ = *jsonOut
 	_ = *csvPath
-	_ = *list
-	_ = *powercapPath
 	fmt.Fprintln(os.Stderr, "raplscope: measurement modes arrive in later milestones")
 	return 1
 }

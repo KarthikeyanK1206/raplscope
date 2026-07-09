@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>raplscope — Architecture &amp; Interview Guide</title>
+<style>
+  :root {
+    --bg: #fdfdfc;
+    --fg: #1b1f24;
+    --muted: #5a6572;
+    --line: #e2e6ea;
+    --card: #f4f6f8;
+    --accent: #b45309;       /* energy amber */
+    --accent-soft: #fef3e2;
+    --code-bg: #f0f2f4;
+    --good: #166534;
+    --bad: #991b1b;
+    --link: #0b5cad;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171a;
+      --fg: #e4e8ec;
+      --muted: #9aa5b1;
+      --line: #2c3238;
+      --card: #1c2126;
+      --accent: #f5a623;
+      --accent-soft: #2a2013;
+      --code-bg: #21262c;
+      --good: #4ade80;
+      --bad: #f87171;
+      --link: #6cb2f7;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 16px/1.65 -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+  }
+  main { max-width: 920px; margin: 0 auto; padding: 2.5rem 1.25rem 5rem; }
+  h1, h2, h3 { line-height: 1.25; }
+  h1 { font-size: 2rem; margin: 0 0 .25rem; }
+  h1 code { font-size: inherit; }
+  h2 {
+    font-size: 1.45rem;
+    margin-top: 3rem;
+    padding-bottom: .35rem;
+    border-bottom: 2px solid var(--line);
+  }
+  h2 .num { color: var(--accent); font-weight: 700; margin-right: .5rem; }
+  h3 { font-size: 1.1rem; margin-top: 1.8rem; }
+  p, li { max-width: 78ch; }
+  a { color: var(--link); }
+  .tagline { color: var(--muted); font-size: 1.1rem; margin-top: 0; }
+  code, pre {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: .9em;
+  }
+  code { background: var(--code-bg); padding: .12em .35em; border-radius: 4px; }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: .9rem 1.1rem;
+    overflow-x: auto;
+    line-height: 1.5;
+  }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .95rem; }
+  th, td { border: 1px solid var(--line); padding: .5rem .7rem; text-align: left; vertical-align: top; }
+  th { background: var(--card); }
+  .wrap-x { overflow-x: auto; }
+  .pill {
+    display: inline-block; padding: .1em .6em; border-radius: 999px;
+    font-size: .78rem; font-weight: 600; letter-spacing: .02em;
+    background: var(--accent-soft); color: var(--accent);
+    vertical-align: middle;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--accent);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin: 1.25rem 0;
+  }
+  .card h3 { margin-top: 0; }
+  .card .why { color: var(--muted); font-size: .95rem; }
+  .toc {
+    background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+    padding: 1rem 1.5rem; margin: 1.5rem 0; columns: 2; column-gap: 2.5rem;
+  }
+  .toc ol { margin: 0; padding-left: 1.2rem; }
+  .toc li { margin: .2rem 0; break-inside: avoid; }
+  .toc a { text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  details {
+    border: 1px solid var(--line); border-radius: 8px;
+    margin: .75rem 0; background: var(--card);
+  }
+  details summary {
+    cursor: pointer; padding: .75rem 1rem; font-weight: 600;
+    list-style-position: inside;
+  }
+  details[open] summary { border-bottom: 1px solid var(--line); }
+  details .a { padding: .75rem 1.25rem; }
+  .good { color: var(--good); font-weight: 600; }
+  .bad { color: var(--bad); font-weight: 600; }
+  .kv { color: var(--muted); font-size: .9rem; }
+  figure { margin: 1.5rem 0; }
+  figcaption { color: var(--muted); font-size: .88rem; text-align: center; margin-top: .5rem; }
+  .diagram { width: 100%; height: auto; }
+  .diagram text { font-family: ui-monospace, Menlo, Consolas, monospace; fill: var(--fg); }
+  .diagram .box { fill: var(--card); stroke: var(--accent); stroke-width: 1.5; rx: 8; }
+  .diagram .side { fill: var(--card); stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 5 3; rx: 8; }
+  .diagram .arrow { stroke: var(--muted); stroke-width: 1.6; fill: none; marker-end: url(#arr); }
+  .diagram .lbl { fill: var(--muted); font-size: 11px; }
+  .diagram .title { font-weight: bold; font-size: 13px; }
+  .diagram .sub { fill: var(--muted); font-size: 11px; }
+  @media (max-width: 640px) { .toc { columns: 1; } }
+</style>
+</head>
+<body>
+<main>
+
+<h1><code>raplscope</code> — Architecture &amp; Interview Guide</h1>
+<p class="tagline">A Linux system energy profiler in Go: reads Intel RAPL hardware counters from sysfs and reports joules and watts for a time window, or for exactly as long as a wrapped command runs — like <code>/usr/bin/time</code>, but for energy.</p>
+
+<p>
+  <span class="pill">Go, stdlib only</span>
+  <span class="pill">~630 lines of source</span>
+  <span class="pill">~330 lines of tests</span>
+  <span class="pill">single binary</span>
+  <span class="pill">zero dependencies</span>
+</p>
+
+<nav class="toc">
+<ol>
+  <li><a href="#pitch">The 30-second pitch</a></li>
+  <li><a href="#rapl">Background: what RAPL is</a></li>
+  <li><a href="#architecture">High-level architecture</a></li>
+  <li><a href="#files">Component-by-component</a></li>
+  <li><a href="#flow">Data flow, both modes</a></li>
+  <li><a href="#decisions">Key design decisions</a></li>
+  <li><a href="#testing">Testing strategy</a></li>
+  <li><a href="#errors">Errors and edge cases</a></li>
+  <li><a href="#limits">Honest limitations</a></li>
+  <li><a href="#qa">Interview Q&amp;A (self-quiz)</a></li>
+</ol>
+</nav>
+
+<h2 id="pitch"><span class="num">1</span>The 30-second pitch</h2>
+<p>
+"I built <strong>raplscope</strong>, a command-line energy profiler for Linux. Modern Intel and AMD
+CPUs have hardware energy counters called RAPL that the kernel exposes through sysfs.
+raplscope reads those counters and answers a question <code>time</code> can't:
+<em>not just how long did my program run, but how many joules did the machine burn while it ran.</em>
+You can monitor live power draw, or wrap any command —
+<code>sudo raplscope -- gzip -9 big.iso</code> — and get total energy, average and peak power,
+with the child's stdio and exit code passed through exactly like <code>/usr/bin/time</code> does.
+It's pure Go standard library, a single static binary, and every line of measurement logic
+is unit-tested without needing root or RAPL hardware, because the sysfs path is injectable."
+</p>
+
+<pre><code>$ sudo raplscope -- gzip -9 big.iso
+
+command        gzip -9 big.iso
+exit code      0
+package-0      412.33 J
+total energy   412.33 J
+average power  28.71 W
+peak power     34.02 W
+elapsed        14.363 s
+samples        14</code></pre>
+
+<h2 id="rapl"><span class="num">2</span>Background: what RAPL is</h2>
+<p>
+<strong>RAPL</strong> (Running Average Power Limit) is a feature of Intel CPUs since Sandy Bridge
+(2011) — and modern AMD Zen chips — originally built so the processor can limit its own power.
+A side effect is a set of <strong>cumulative energy counters</strong> maintained by hardware.
+The Linux <code>powercap</code> driver publishes them as plain text files:
+</p>
+<pre><code>/sys/class/powercap/
+├── intel-rapl:0/              ← one per CPU socket ("package")
+│   ├── name                   "package-0"
+│   ├── energy_uj              cumulative microjoules since boot, modulo wrap
+│   ├── max_energy_range_uj    the counter's ceiling, e.g. 262143328850 (≈262 kJ)
+│   ├── intel-rapl:0:0/        subdomain: "core"    (skipped — part of package)
+│   └── intel-rapl:0:1/        subdomain: "uncore"  (skipped — part of package)
+├── intel-rapl:1/              "psys" on some machines (skipped — includes packages)
+└── intel-rapl-mmio:0/         mmio duplicate of package-0 (skipped — double counting)</code></pre>
+<p>Three hardware facts drive the whole design:</p>
+<ul>
+  <li><strong>The counter is cumulative and it wraps.</strong> At <code>max_energy_range_uj</code>
+      it rolls over to zero — roughly every 45 minutes on a busy ~100&nbsp;W package. Any tool that
+      ignores this silently reports garbage on long runs.</li>
+  <li><strong>It is root-only.</strong> Since the PLATYPUS side-channel attack
+      (CVE-2020-8694, 2020), the kernel restricts <code>energy_uj</code> to mode 0400. RAPL readings
+      were precise enough to leak cryptographic keys — which is also a testament to their accuracy.</li>
+  <li><strong>It is per-socket, not per-process.</strong> The hardware counts everything on the
+      package. No software can change that, so raplscope doesn't pretend to attribute energy
+      to a single process — it documents the limitation instead.</li>
+</ul>
+
+<h2 id="architecture"><span class="num">3</span>High-level architecture</h2>
+<p>Four small components with strictly one-way data flow. No component knows about the one downstream of it beyond the value it hands over.</p>
+
+<figure>
+<svg class="diagram" viewBox="0 0 880 300" role="img" aria-label="Architecture diagram: sysfs feeds rapl.go Reader, which feeds sampler loop, which feeds stats Accumulator, which feeds output renderers. run.go manages the child process lifecycle in wrap mode, and main.go wires everything.">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="currentColor" opacity="0.7"/>
+    </marker>
+  </defs>
+  <!-- kernel/sysfs -->
+  <rect class="side" x="10" y="90" width="150" height="80" rx="8"/>
+  <text class="title" x="85" y="122" text-anchor="middle">sysfs</text>
+  <text class="sub" x="85" y="140" text-anchor="middle">/sys/class/powercap</text>
+  <text class="sub" x="85" y="156" text-anchor="middle">(kernel powercap)</text>
+  <!-- rapl.go -->
+  <rect class="box" x="205" y="90" width="140" height="80" rx="8"/>
+  <text class="title" x="275" y="122" text-anchor="middle">rapl.go</text>
+  <text class="sub" x="275" y="140" text-anchor="middle">Reader</text>
+  <text class="sub" x="275" y="156" text-anchor="middle">raw counters, I/O</text>
+  <!-- sampler -->
+  <rect class="box" x="390" y="90" width="140" height="80" rx="8"/>
+  <text class="title" x="460" y="122" text-anchor="middle">sampler.go</text>
+  <text class="sub" x="460" y="140" text-anchor="middle">ticker loop</text>
+  <text class="sub" x="460" y="156" text-anchor="middle">stop conditions</text>
+  <!-- stats -->
+  <rect class="box" x="575" y="90" width="140" height="80" rx="8"/>
+  <text class="title" x="645" y="122" text-anchor="middle">stats.go</text>
+  <text class="sub" x="645" y="140" text-anchor="middle">Accumulator</text>
+  <text class="sub" x="645" y="156" text-anchor="middle">pure math, no I/O</text>
+  <!-- output -->
+  <rect class="box" x="760" y="90" width="110" height="80" rx="8"/>
+  <text class="title" x="815" y="122" text-anchor="middle">output.go</text>
+  <text class="sub" x="815" y="140" text-anchor="middle">table · JSON</text>
+  <text class="sub" x="815" y="156" text-anchor="middle">CSV</text>
+  <!-- arrows -->
+  <line class="arrow" x1="160" y1="130" x2="200" y2="130" style="color: var(--muted)"/>
+  <line class="arrow" x1="345" y1="130" x2="385" y2="130" style="color: var(--muted)"/>
+  <line class="arrow" x1="530" y1="130" x2="570" y2="130" style="color: var(--muted)"/>
+  <line class="arrow" x1="715" y1="130" x2="755" y2="130" style="color: var(--muted)"/>
+  <text class="lbl" x="180" y="118" text-anchor="middle">read</text>
+  <text class="lbl" x="365" y="118" text-anchor="middle">Snapshot</text>
+  <text class="lbl" x="550" y="118" text-anchor="middle">Snapshot</text>
+  <text class="lbl" x="735" y="118" text-anchor="middle">Result</text>
+  <!-- main.go -->
+  <rect class="side" x="205" y="10" width="510" height="44" rx="8"/>
+  <text class="title" x="460" y="30" text-anchor="middle">main.go — flags, mode selection, wiring, exit codes</text>
+  <text class="sub" x="460" y="46" text-anchor="middle">no measurement logic of its own</text>
+  <!-- run.go -->
+  <rect class="side" x="390" y="220" width="140" height="66" rx="8"/>
+  <text class="title" x="460" y="246" text-anchor="middle">run.go</text>
+  <text class="sub" x="460" y="262" text-anchor="middle">child lifecycle,</text>
+  <text class="sub" x="460" y="276" text-anchor="middle">signals, exit codes</text>
+  <line class="arrow" x1="460" y1="215" x2="460" y2="175" style="color: var(--muted)"/>
+  <text class="lbl" x="472" y="200" text-anchor="start">wrap mode only</text>
+</svg>
+<figcaption>One-way data flow: raw counter snapshots move left to right and become a report.</figcaption>
+</figure>
+
+<p>The two data types that cross component boundaries:</p>
+<pre><code>type Snapshot struct {          // produced by rapl.go, consumed by stats.go
+    At time.Time                // carries Go's monotonic clock reading
+    UJ []uint64                 // raw cumulative microjoules, one per domain
+}
+
+type Result struct {            // produced by stats.go, consumed by output.go
+    Domains     []DomainResult  // per-package joules
+    TotalJoules float64
+    AvgWatts    float64
+    PeakWatts   float64         // interval-averaged, documented as such
+    ElapsedSec  float64
+    Samples     int
+    Command     string          // wrap mode only
+    ExitCode    *int            // wrap mode only
+}</code></pre>
+
+<h2 id="files"><span class="num">4</span>Component-by-component</h2>
+<div class="wrap-x">
+<table>
+  <tr><th>File</th><th>Lines</th><th>Responsibility</th><th>Deliberately does <em>not</em></th></tr>
+  <tr>
+    <td><code>main.go</code></td><td>123</td>
+    <td>Flag parsing, validation (usage errors → exit 2), mode selection, wiring the pieces together, monitor-mode entry.</td>
+    <td>Contain any measurement logic.</td>
+  </tr>
+  <tr>
+    <td><code>rapl.go</code></td><td>118</td>
+    <td>Discover <code>package-*</code> domains under an injectable root; read raw cumulative counters into <code>Snapshot</code>s; translate the two common failures (no RAPL, no permission) into actionable messages.</td>
+    <td>Any math. It returns raw counter values; wrap correction lives downstream.</td>
+  </tr>
+  <tr>
+    <td><code>sampler.go</code></td><td>62</td>
+    <td>The timing loop: initial boundary snapshot, <code>time.Ticker</code> at <code>-interval</code>, stop on context cancel (Ctrl+C) or <code>-duration</code>, final boundary snapshot.</td>
+    <td>Know how the numbers are computed or rendered.</td>
+  </tr>
+  <tr>
+    <td><code>stats.go</code></td><td>135</td>
+    <td>Pure functions and the <code>Accumulator</code>: wrap-corrected deltas, per-interval power, peak tracking, final <code>Result</code>. The single trickiest function, <code>wrapDelta</code>, is 6 lines and table-tested.</td>
+    <td>Any I/O. Everything here runs in unit tests with synthetic data.</td>
+  </tr>
+  <tr>
+    <td><code>run.go</code></td><td>110</td>
+    <td>Wrap mode: start the child with inherited stdio, forward SIGINT/SIGTERM to it, sample while it runs, map its exit status (including <code>128+N</code> for signal death).</td>
+    <td>Touch the child's output streams.</td>
+  </tr>
+  <tr>
+    <td><code>output.go</code></td><td>84</td>
+    <td>Three small writers: aligned table via <code>text/tabwriter</code>, indented JSON, per-sample CSV (flushed per row so a killed run still leaves a usable file).</td>
+    <td>Hide behind a <code>Renderer</code> interface — they're just three functions.</td>
+  </tr>
+</table>
+</div>
+
+<h2 id="flow"><span class="num">5</span>Data flow, both modes</h2>
+
+<h3>Monitor mode — <code>sudo raplscope -duration 10s</code></h3>
+<ol>
+  <li>Parse and validate flags (interval ≥ 10 ms; <code>-duration</code> and a command are mutually exclusive → exit 2).</li>
+  <li><code>DiscoverReader(root)</code> scans the powercap tree for top-level <code>package-*</code> domains, or fails with a specific error.</li>
+  <li>Take the <strong>initial boundary snapshot</strong> (t₀, energy₀ per domain).</li>
+  <li>Loop on a <code>time.Ticker</code>: read → <code>Accumulator.Add</code> → live line on stderr, optional CSV row.</li>
+  <li>Stop when <code>-duration</code> elapses or on SIGINT/SIGTERM via <code>signal.NotifyContext</code>.</li>
+  <li>Take the <strong>final boundary snapshot</strong>, render the <code>Result</code> as table or JSON on <strong>stdout</strong>. Exit 0.</li>
+</ol>
+
+<h3>Wrap mode — <code>sudo raplscope -- stress-ng --cpu 4 -t 5</code></h3>
+<ol>
+  <li><code>flag.Args()</code> non-empty → wrap mode (stdlib <code>flag</code> stops at the first non-flag argument; <code>--</code> also works natively).</li>
+  <li>Discover, take the initial snapshot, then <code>exec.Command(...).Start()</code> with <strong>inherited stdin/stdout/stderr</strong>.</li>
+  <li>One goroutine waits on <code>cmd.Wait()</code>; the main loop <code>select</code>s over three channels:
+      the ticker (sample), the signal channel (forward to child, keep waiting), and the wait result (done).</li>
+  <li>Immediately after the child exits, take the final boundary snapshot — the measurement window is exactly the child's lifetime.</li>
+  <li>Report to <strong>stderr</strong> (the child owns stdout) and exit with the child's exit code; <code>128+N</code> if it died from signal N; 1 if it failed to start.</li>
+</ol>
+
+<h2 id="decisions"><span class="num">6</span>Key design decisions <span class="kv">— the section interviewers actually ask about</span></h2>
+
+<div class="card">
+  <h3>Path injection instead of an interface</h3>
+  <p><code>DiscoverReader(root string)</code> takes the powercap root path; production passes
+  <code>/sys/class/powercap</code>, tests pass a fake tree in <code>t.TempDir()</code>.
+  That one string parameter is the <em>entire</em> testing seam — no <code>Source</code> interface, no mocks.</p>
+  <p class="why"><strong>Why:</strong> the boundary to fake isn't "an energy source", it's the filesystem, and
+  the filesystem is already an abstraction. An interface with exactly one implementation is
+  speculative generality: it adds indirection today for a second implementation that may never exist.
+  If a GPU or battery source ever lands, the interface gets extracted <em>then</em>, shaped by two real
+  implementations instead of one guess.</p>
+</div>
+
+<div class="card">
+  <h3>I/O and math never mix</h3>
+  <p><code>rapl.go</code> returns raw cumulative counters; every calculation — wrap correction,
+  deltas, watts, peak — lives in <code>stats.go</code> as pure code operating on <code>Snapshot</code> values.</p>
+  <p class="why"><strong>Why:</strong> the math is the part that can be subtly wrong, so it's the part that
+  must be trivially testable. <code>Accumulator</code> tests feed hand-built snapshots with exact
+  timestamps and assert exact joules — no hardware, no sleeping, no flakiness. It also means a bug
+  report can be reproduced from a CSV of raw readings alone.</p>
+</div>
+
+<div class="card">
+  <h3>Boundary snapshots define totals; ticker samples are garnish</h3>
+  <p>Total energy = final snapshot − initial snapshot (wrap-corrected). The per-interval samples
+  in between exist only for peak power, live output and the CSV series.</p>
+  <p class="why"><strong>Why:</strong> a wrapped command might run 50 ms while the sampling interval is
+  1 s — zero ticks fire, yet the total is still exact because the boundaries were read at
+  start and exit. Summing ticker samples instead would systematically lose the partial interval at
+  each end. Corollary: with fewer than two full intervals there's no meaningful peak, so peak
+  falls back to the average rather than inventing precision.</p>
+</div>
+
+<div class="card">
+  <h3>Wraparound is corrected at every delta</h3>
+  <pre><code>func wrapDelta(prev, cur, maxRange uint64) uint64 {
+    if cur >= prev {
+        return cur - prev
+    }
+    return (maxRange - prev) + cur
+}</code></pre>
+  <p class="why"><strong>Why:</strong> the counter rolls to zero at <code>max_energy_range_uj</code> —
+  every ~45 minutes under load, so it <em>will</em> happen in real use. Because correction is applied
+  per interval and the intervals are chained, the total stays correct across multiple wraps in one
+  run, as long as any single interval spans at most one wrap (a 1 s interval vs a 45 min wrap
+  period: five orders of magnitude of margin).</p>
+</div>
+
+<div class="card">
+  <h3>Actual monotonic elapsed time, never the nominal interval</h3>
+  <p>Watts = ΔE / Δt where Δt comes from subtracting <code>time.Time</code> values — which in Go
+  carries the monotonic clock — not from assuming "the ticker fired, so 1 s passed".</p>
+  <p class="why"><strong>Why:</strong> tickers jitter under load (exactly when power measurement is
+  interesting), and the wall clock can step (NTP, DST) mid-measurement. Using the monotonic reading
+  makes the denominator honest. This is the kind of detail that separates a measurement tool from
+  a toy.</p>
+</div>
+
+<div class="card">
+  <h3>Report stream follows the <code>/usr/bin/time</code> precedent</h3>
+  <p>Monitor mode reports on stdout (live progress lines on stderr). Wrap mode reports on
+  <strong>stderr</strong>, because the child owns stdout.</p>
+  <p class="why"><strong>Why:</strong> <code>sudo raplscope -- myprog | consumer</code> must deliver
+  the child's stdout to the consumer byte-for-byte, with the energy report off to the side —
+  exactly how <code>/usr/bin/time</code> behaves. Same reasoning puts monitor-mode live lines on
+  stderr so <code>raplscope -json | jq</code> parses cleanly.</p>
+</div>
+
+<div class="card">
+  <h3>Concurrency budget: three goroutines, no locks</h3>
+  <p>The main loop, a channel delivering signals, and (wrap mode only) one goroutine whose only
+  job is <code>done &lt;- cmd.Wait()</code>. All coordination is a single <code>select</code>;
+  the <code>Accumulator</code> is touched by exactly one goroutine, so it needs no mutex.</p>
+  <p class="why"><strong>Why:</strong> every additional goroutine is a liability in a measurement
+  tool — scheduling noise pollutes timing, and shared state invites races. The <code>select</code>
+  loop makes the whole lifecycle (tick / signal / child-exit) readable in one screen.</p>
+</div>
+
+<div class="card">
+  <h3>Zero dependencies, one package, hard guardrails</h3>
+  <p>Stdlib <code>flag</code> instead of cobra; <code>text/tabwriter</code> instead of a table
+  library; no <code>internal/</code> packages; no config files; no colors.</p>
+  <p class="why"><strong>Why:</strong> the project's stated philosophy is that every abstraction must
+  be justified by a problem that exists today. A 630-line tool with a CLI framework, DI container
+  and plugin system says worse things about its author than a plain one. Zero dependencies also
+  means zero supply-chain surface and a build that will still work in ten years.</p>
+</div>
+
+<h2 id="testing"><span class="num">7</span>Testing strategy</h2>
+<p>
+The design constraint: <strong>every piece of logic must run in CI on any Linux runner — no root,
+no RAPL hardware.</strong> That's achieved with one seam and one discipline:
+</p>
+<ul>
+  <li><strong>The seam:</strong> tests build a fake powercap tree in <code>t.TempDir()</code>
+      (helper: <code>writeFakeDomain(t, root, "intel-rapl:0", "package-0", energy, max)</code>) and point
+      <code>DiscoverReader</code> at it. The fake tree is generated at test time, not committed under
+      <code>testdata/</code> — the directory names contain <code>:</code>, which breaks git checkouts
+      on Windows.</li>
+  <li><strong>The discipline:</strong> because stats.go does no I/O, the math needs no seam at all —
+      tests construct <code>Snapshot</code> values with exact timestamps and assert exact joules.</li>
+</ul>
+<div class="wrap-x">
+<table>
+  <tr><th>Test</th><th>What it locks down</th></tr>
+  <tr><td><code>TestDiscoverReader</code></td><td>Finds <code>package-*</code>; skips subdomains (<code>intel-rapl:0:0</code>), psys, mmio duplicates, unrelated entries.</td></tr>
+  <tr><td><code>TestDiscoverReaderNoRAPL</code></td><td>Empty root, missing root, psys-only root all yield <code>ErrNoRAPL</code> with the actionable message.</td></tr>
+  <tr><td><code>TestReadPermissionDenied</code></td><td><code>chmod 0</code> on the fake <code>energy_uj</code> → the "run with sudo (PLATYPUS)" message. Skips under root, where permissions aren't enforced.</td></tr>
+  <tr><td><code>TestWrapDelta</code></td><td>Table-driven: normal, equal, wrap, wrap-to-zero, wrap-from-max.</td></tr>
+  <tr><td><code>TestAccumulator*</code></td><td>Multi-domain totals, avg from boundaries, peak from full intervals only, wrap mid-run, peak→avg fallback with &lt;2 intervals.</td></tr>
+  <tr><td><code>TestWriteJSON / TestCSVLogger / TestWriteTable</code></td><td>Golden output; monitor-mode JSON omits wrap-only fields.</td></tr>
+</table>
+</div>
+<p>
+Real hardware is a documented manual smoke test (<code>sudo raplscope -list</code>, a 5 s monitor
+run, exit-code propagation check), because CI runners are VMs and VMs don't have RAPL — which is
+itself one of the tool's documented limitations, pleasingly.
+</p>
+
+<h2 id="errors"><span class="num">8</span>Errors and edge cases</h2>
+<div class="wrap-x">
+<table>
+  <tr><th>Situation</th><th>Behavior</th></tr>
+  <tr><td>Normal user (no root) reads <code>energy_uj</code></td><td><span class="bad">exit 1</span> — "permission denied reading energy counters — run with sudo (the kernel restricts RAPL to root since the PLATYPUS fix, CVE-2020-8694)"</td></tr>
+  <tr><td>VM / ARM / no powercap tree</td><td><span class="bad">exit 1</span> — "no Intel RAPL domains found — needs bare-metal Linux on Intel (Sandy Bridge+) or modern AMD (Zen 2+)…"</td></tr>
+  <tr><td>Counter wraps mid-run</td><td>Corrected silently by <code>wrapDelta</code>; unit-tested.</td></tr>
+  <tr><td>Wrapped command shorter than one interval</td><td>Boundary snapshots still give the exact total; peak falls back to average.</td></tr>
+  <tr><td>Wrapped command not found</td><td>Clear message, <span class="bad">exit 1</span>, no report.</td></tr>
+  <tr><td>Ctrl+C in monitor mode</td><td>Stop sampling, report the elapsed window, <span class="good">exit 0</span>.</td></tr>
+  <tr><td>Ctrl+C / SIGTERM in wrap mode</td><td>Forwarded to the child; raplscope keeps waiting, reports after the child exits, exits <code>128+N</code>. (Verified: SIGTERM → exit 143 with a full report.)</td></tr>
+  <tr><td>Child exits non-zero</td><td>Report still printed; exit code propagated (verified: <code>sh -c 'exit 7'</code> → 7).</td></tr>
+  <tr><td><code>-duration</code> combined with a command, or <code>-interval &lt; 10ms</code></td><td>Usage error, <span class="bad">exit 2</span>.</td></tr>
+</table>
+</div>
+
+<h2 id="limits"><span class="num">9</span>Honest limitations</h2>
+<ul>
+  <li><strong>System-wide, not per-process.</strong> RAPL counts the whole socket. Wrapping a command
+      measures system energy <em>while it ran</em>, background load included. This is a hardware
+      property; tools claiming per-process joules from RAPL are modeling, not measuring.</li>
+  <li><strong>Root required</strong> (post-PLATYPUS kernels).</li>
+  <li><strong>Bare metal only</strong> — no VMs, most containers, WSL2, or ARM.</li>
+  <li><strong>Peak is interval-averaged</strong>, not an instantaneous spike.</li>
+  <li><strong>CPU package energy only</strong> — no GPU, DRAM domain, battery, or platform (psys) totals.</li>
+</ul>
+
+<h2 id="qa"><span class="num">10</span>Interview Q&amp;A — click a question to reveal the answer (self-quiz)</h2>
+
+<details>
+<summary>What happens if the RAPL counter wraps twice between two of your samples?</summary>
+<div class="a"><p>The delta undercounts by one full <code>max_energy_range_uj</code> — <code>wrapDelta</code> can only detect a single wrap, because a cumulative counter modulo N loses information beyond one period. The defense is rate: the wrap period is ~45 minutes at full load and the maximum sampling interval anyone would sanely configure is seconds, so a double wrap within one interval would require power draw five orders of magnitude beyond the hardware's range. It's documented, not defended against with code — an example of matching engineering effort to physical reality.</p></div>
+</details>
+
+<details>
+<summary>Why did you not define a <code>Source</code> interface for energy readers?</summary>
+<div class="a"><p>Because there is exactly one source. An interface with one implementation is indirection with no consumer — you pay the abstraction cost today for a hypothetical tomorrow. The actual variability I need is "where is the sysfs tree", and a string parameter covers it for both production and tests. If a second source (GPU, battery) ever lands, I'd extract the interface then, and it would be shaped by two real implementations rather than one guess. Interfaces are cheap to add later in Go precisely because they're satisfied implicitly.</p></div>
+</details>
+
+<details>
+<summary>How do you test hardware-dependent code without the hardware?</summary>
+<div class="a"><p>The hardware interface is just files with integers in them, so tests generate a fake powercap tree in a temp directory — including decoys like psys, core subdomains and mmio duplicates that discovery must skip — and inject its path. The permission failure is simulated with <code>chmod 0</code>. Everything downstream of the reader is pure math on <code>Snapshot</code> values and needs no faking at all. The one thing this can't prove — that real kernels really lay files out this way — is covered by a documented manual smoke test on real hardware.</p></div>
+</details>
+
+<details>
+<summary>Walk me through what happens when I press Ctrl+C while wrapping a command.</summary>
+<div class="a"><p>The terminal sends SIGINT to the foreground process group — both raplscope and the child. raplscope has the signal routed to a channel via <code>signal.Notify</code>, so it doesn't die; its select loop forwards the signal to the child and <em>keeps waiting</em>. When the child exits, the <code>Wait()</code> goroutine delivers the status, raplscope takes the final energy snapshot, prints the report for the window that actually elapsed, and exits with <code>128+N</code> — the shell convention for death-by-signal-N, the same thing <code>/usr/bin/time</code> does. The invariant: the child controls its own death; raplscope only observes and reports.</p></div>
+</details>
+
+<details>
+<summary>Why does total energy come from boundary snapshots instead of summing the per-second samples?</summary>
+<div class="a"><p>Because the counter is cumulative, the difference between the last and first readings <em>is</em> the total — the samples in between add no information to the sum, only resolution for peak power and the CSV curve. Summing samples would also break on short windows: a 50 ms wrapped command sees zero ticker fires, but its boundary snapshots are taken at <code>Start()</code> and right after <code>Wait()</code>, so the total is still exact. The general principle: derive totals from the most direct measurement available, use sampling only for what genuinely needs time resolution.</p></div>
+</details>
+
+<details>
+<summary>Why is average power computed with monotonic time? What could go wrong otherwise?</summary>
+<div class="a"><p>Two failure modes. First, ticker jitter: under load a "1 s" tick might arrive after 1.2 s; dividing by the nominal interval would overstate power by 20% exactly when the machine is busiest. Second, wall-clock steps: NTP adjustments or a suspended laptop can move <code>time.Now()</code> backwards or jump it forward, producing negative or absurd Δt. Go's <code>time.Time</code> carries a monotonic reading, and subtracting two of them uses it automatically — so Δt is always the physical duration between the two reads.</p></div>
+</details>
+
+<details>
+<summary>Why can't this tool tell me how much energy <em>my process</em> used?</summary>
+<div class="a"><p>Because the counter is implemented in the package hardware and counts every core, cache and memory controller on the socket, no matter which process was running. Attribution would require sampling per-process CPU time and dividing energy proportionally — a model with real error bars (shared caches, frequency scaling, interference), not a measurement. I chose to report the honest number — system energy during the window — and document the distinction, rather than print a per-process figure that looks precise and isn't. For comparisons (gzip vs zstd on an idle machine) the honest number is exactly what you want anyway.</p></div>
+</details>
+
+<details>
+<summary>Why is <code>energy_uj</code> root-only, and why do you mention a CVE in an error message?</summary>
+<div class="a"><p>PLATYPUS (CVE-2020-8694, 2020) showed RAPL readings are precise enough to act as a power side channel — attackers could recover cryptographic keys by correlating energy with instruction data. The kernel's fix made <code>energy_uj</code> mode 0400. The error message names the CVE because "permission denied" alone sends a user to chmod or bug trackers; telling them <em>why</em> it's restricted and that sudo is the intended path turns a dead end into a one-step fix. Error messages are UI.</p></div>
+</details>
+
+<details>
+<summary>Why did you skip the psys domain? Isn't more data better?</summary>
+<div class="a"><p>psys covers the whole platform <em>including</em> the packages, so summing psys with package-0 counts the CPU twice. Reporting psys alone was an option, but it's not present on most machines and its coverage varies by platform, which would make numbers incomparable across systems. Summing only top-level <code>package-*</code> domains — while also excluding core/uncore subdomains (subsets of package) and <code>intel-rapl-mmio</code> (a second interface to the same counters) — is the one choice that never double counts. Correctness of the sum beat completeness of the sources.</p></div>
+</details>
+
+<details>
+<summary>Describe the concurrency model. Where are the locks?</summary>
+<div class="a"><p>There are no locks, by construction. At most three goroutines exist: the main loop, the runtime delivering signals to a channel, and in wrap mode one goroutine doing <code>done &lt;- cmd.Wait()</code>. All events — ticker fire, signal arrival, child exit — converge on one <code>select</code> in one goroutine, and that goroutine is the only one touching the <code>Accumulator</code>. Serializing events through channels instead of sharing state is the idiomatic Go answer, and in a measurement tool it has a second payoff: fewer goroutines means less scheduler noise in the timings.</p></div>
+</details>
+
+<details>
+<summary>How would you add GPU power measurement?</summary>
+<div class="a"><p>First establish that the semantics differ: NVML gives instantaneous milliwatts, not a cumulative energy counter, so it needs integration over samples rather than boundary subtraction — which means it can't just masquerade as another RAPL domain. I'd extract a small interface shaped by what the accumulator actually needs (probably "give me energy since last call"), implement it twice — the RAPL reader via counter deltas, the GPU source by integrating power samples — and report them as separate domains, never summed silently with CPU joules since they're measured differently. The key point: I'd let the second real implementation shape the abstraction, which is exactly why it doesn't exist yet.</p></div>
+</details>
+
+<details>
+<summary>Why stdlib <code>flag</code> instead of cobra? Why zero dependencies at all?</summary>
+<div class="a"><p>The tool has seven flags and two modes; <code>flag</code> covers that in ~20 lines including a custom usage string. Cobra would add subcommand machinery, completions and ~10 transitive dependencies to serve needs this tool doesn't have. Zero dependencies buys concrete things: no supply-chain exposure, no version churn, <code>go build</code> works offline forever, and the binary is fully auditable by reading one directory. The general rule I followed: every dependency and every abstraction must be justified by a problem that exists today, not a problem I can imagine.</p></div>
+</details>
+
+<details>
+<summary>What was the hardest bug or subtlety you hit?</summary>
+<div class="a"><p>Two honest candidates. One: the final boundary snapshot creates a partial interval — a run of 4.3 s at a 1 s interval ends with a 0.3 s tail — and feeding that tail into peak-power tracking produced noise spikes, since tiny Δt amplifies quantization error. Fix: <code>Finish()</code> folds the tail into the totals but excludes it from peak. Two: in testing, my fake-counter simulator wrote files with truncate-then-write, and the tool occasionally read an empty file mid-write. Real sysfs reads are atomic (the kernel generates content at read time), so the right fix was making the <em>simulator</em> write atomically via rename — a good lesson in fixing the model, not adding retry logic to production code for a failure mode that can't occur there.</p></div>
+</details>
+
+<details>
+<summary>If fewer than two sampling intervals fit in the window, what does peak power mean?</summary>
+<div class="a"><p>Nothing — so the tool doesn't report a fake one. Peak is defined as the maximum over full-interval average powers; with zero or one full interval there's no population to take a maximum over, so <code>PeakWatts</code> falls back to <code>AvgWatts</code> and the README documents it. The alternative — reporting the single interval or the partial tail as "peak" — would be precision theater. Small case, but it's the pattern throughout: never let the output imply more measurement than actually happened.</p></div>
+</details>
+
+<h2><span class="num">11</span>Glossary</h2>
+<div class="wrap-x">
+<table>
+  <tr><th>Term</th><th>Meaning</th></tr>
+  <tr><td>RAPL</td><td>Running Average Power Limit — CPU hardware energy counters (Intel Sandy Bridge+, AMD Zen 2+).</td></tr>
+  <tr><td>powercap</td><td>The Linux kernel framework exposing RAPL as sysfs files.</td></tr>
+  <tr><td>package</td><td>One CPU socket: cores + caches + integrated memory controller/graphics.</td></tr>
+  <tr><td>psys</td><td>"Platform" domain that includes the packages — skipped to avoid double counting.</td></tr>
+  <tr><td>Joule (J)</td><td>Unit of energy. 1 watt sustained for 1 second.</td></tr>
+  <tr><td>Watt (W)</td><td>Power: joules per second. raplscope reports ΔE/Δt.</td></tr>
+  <tr><td>Wraparound</td><td>The cumulative counter rolling to 0 at <code>max_energy_range_uj</code>.</td></tr>
+  <tr><td>PLATYPUS</td><td>CVE-2020-8694 — power side-channel attack; the reason RAPL is root-only.</td></tr>
+  <tr><td>Boundary snapshot</td><td>Counter reading at the start/end of the window; their difference is the total.</td></tr>
+  <tr><td>Monotonic clock</td><td>A clock that only moves forward; immune to NTP/wall-clock steps. Carried inside Go's <code>time.Time</code>.</td></tr>
+</table>
+</div>
+
+<p class="kv" style="margin-top:3rem">raplscope v1.0.0 · Go stdlib only · MIT · this document lives at <code>docs/architecture.html</code></p>
+
+</main>
+</body>
+</html>

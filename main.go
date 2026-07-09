@@ -18,7 +18,7 @@ import (
 	"time"
 )
 
-const version = "0.1.0"
+const version = "1.0.0"
 
 const defaultPowercapPath = "/sys/class/powercap"
 

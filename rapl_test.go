@@ -35,10 +35,10 @@ func TestDiscoverReader(t *testing.T) {
 	root := t.TempDir()
 	writeFakeDomain(t, root, "intel-rapl:0", "package-0", 1000, 262143328850)
 	writeFakeDomain(t, root, "intel-rapl:1", "package-1", 2000, 262143328850)
-	writeFakeDomain(t, root, "intel-rapl:0:0", "core", 500, 262143328850) // subdomain: skip
-	writeFakeDomain(t, root, "intel-rapl:2", "psys", 9000, 262143328850)  // psys: skip
+	writeFakeDomain(t, root, "intel-rapl:0:0", "core", 500, 262143328850)          // subdomain: skip
+	writeFakeDomain(t, root, "intel-rapl:2", "psys", 9000, 262143328850)           // psys: skip
 	writeFakeDomain(t, root, "intel-rapl-mmio:0", "package-0", 1000, 262143328850) // mmio duplicate: skip
-	if err := os.MkdirAll(filepath.Join(root, "dtpm"), 0o755); err != nil { // unrelated entry: skip
+	if err := os.MkdirAll(filepath.Join(root, "dtpm"), 0o755); err != nil {        // unrelated entry: skip
 		t.Fatal(err)
 	}
 

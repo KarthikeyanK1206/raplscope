@@ -19,10 +19,19 @@ elapsed        14.363 s
 samples        14
 ```
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-dark.png">
+    <img src="docs/screenshot-light.png" alt="The bundled energy-viz.html dashboard: KPI tiles for total energy, average power, peak power and elapsed time, above a power-draw chart and a cumulative-energy chart" width="820">
+  </picture>
+  <br>
+  <em>The bundled <code>docs/energy-viz.html</code> dashboard rendering a <code>-csv</code> time series.</em>
+</p>
+
 ## Install
 
 ```
-go install github.com/karthikeyan/raplscope@latest
+go install github.com/KarthikeyanK1206/raplscope@latest
 ```
 
 Or clone and `go build`.

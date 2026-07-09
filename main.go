@@ -8,9 +8,12 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -78,6 +81,20 @@ flags:
 
 	_ = *jsonOut
 	_ = *csvPath
-	fmt.Fprintln(os.Stderr, "raplscope: measurement modes arrive in later milestones")
-	return 1
+	return monitorMode(reader, *interval, *duration)
+}
+
+// monitorMode samples until Ctrl+C or -duration, then reports to stdout.
+// Live per-interval lines go to stderr so stdout carries only the report.
+func monitorMode(r *Reader, interval, duration time.Duration) int {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	acc := NewAccumulator(r.Domains)
+	if err := sampleLoop(ctx, r, acc, interval, duration, os.Stderr); err != nil {
+		fmt.Fprintf(os.Stderr, "raplscope: %v\n", err)
+		return 1
+	}
+	writeTable(os.Stdout, acc.Result())
+	return 0
 }

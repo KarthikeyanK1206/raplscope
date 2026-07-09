@@ -15,7 +15,7 @@ import (
 // /usr/bin/time precedent: the child inherits stdio, SIGINT/SIGTERM are
 // forwarded to it, the report goes to stderr so the child's stdout stays
 // pipeable, and raplscope exits with the child's exit code.
-func wrapMode(r *Reader, args []string, interval time.Duration) int {
+func wrapMode(r *Reader, args []string, interval time.Duration, jsonOut bool, csvL *csvLogger) int {
 	acc := NewAccumulator(r.Domains)
 
 	cmd := exec.Command(args[0], args[1:]...)
@@ -53,9 +53,16 @@ loop:
 		case waitErr = <-done:
 			break loop
 		case <-ticker.C:
-			if _, err := readAndAdd(r, acc); err != nil {
+			iv, err := readAndAdd(r, acc)
+			if err != nil {
 				fmt.Fprintf(os.Stderr, "raplscope: %v\n", err)
 				return 1
+			}
+			if csvL != nil {
+				if err := csvL.row(iv); err != nil {
+					fmt.Fprintf(os.Stderr, "raplscope: %v\n", err)
+					return 1
+				}
 			}
 		}
 	}
@@ -72,7 +79,9 @@ loop:
 	res.Command = strings.Join(args, " ")
 	res.ExitCode = &exitCode
 
-	writeTable(os.Stderr, res)
+	if rc := report(os.Stderr, res, jsonOut); rc != 0 {
+		return rc
+	}
 	return exitCode
 }
 

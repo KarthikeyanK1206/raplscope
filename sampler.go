@@ -11,7 +11,7 @@ import (
 // ctx is cancelled or duration elapses, then takes a final boundary snapshot.
 // Totals come from the boundary snapshots; ticker samples exist for peak
 // power, live lines and CSV rows.
-func sampleLoop(ctx context.Context, r *Reader, acc *Accumulator, interval, duration time.Duration, live io.Writer) error {
+func sampleLoop(ctx context.Context, r *Reader, acc *Accumulator, interval, duration time.Duration, live io.Writer, csvL *csvLogger) error {
 	first, err := r.Read()
 	if err != nil {
 		return err
@@ -42,6 +42,11 @@ func sampleLoop(ctx context.Context, r *Reader, acc *Accumulator, interval, dura
 			iv := acc.Add(s)
 			if live != nil {
 				fmt.Fprintf(live, "%7.1fs  %10.2f J  %8.2f W\n", iv.ElapsedSec, iv.Joules, iv.Watts)
+			}
+			if csvL != nil {
+				if err := csvL.row(iv); err != nil {
+					return err
+				}
 			}
 		}
 	}

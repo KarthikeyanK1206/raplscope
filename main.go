@@ -11,6 +11,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -79,25 +80,44 @@ flags:
 		return 0
 	}
 
-	_ = *jsonOut
-	_ = *csvPath
-	if len(args) > 0 {
-		return wrapMode(reader, args, *interval)
+	var csvL *csvLogger
+	if *csvPath != "" {
+		csvL, err = newCSVLogger(*csvPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "raplscope: %v\n", err)
+			return 1
+		}
+		defer csvL.Close()
 	}
-	return monitorMode(reader, *interval, *duration)
+
+	if len(args) > 0 {
+		return wrapMode(reader, args, *interval, *jsonOut, csvL)
+	}
+	return monitorMode(reader, *interval, *duration, *jsonOut, csvL)
 }
 
 // monitorMode samples until Ctrl+C or -duration, then reports to stdout.
 // Live per-interval lines go to stderr so stdout carries only the report.
-func monitorMode(r *Reader, interval, duration time.Duration) int {
+func monitorMode(r *Reader, interval, duration time.Duration, jsonOut bool, csvL *csvLogger) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	acc := NewAccumulator(r.Domains)
-	if err := sampleLoop(ctx, r, acc, interval, duration, os.Stderr); err != nil {
+	if err := sampleLoop(ctx, r, acc, interval, duration, os.Stderr, csvL); err != nil {
 		fmt.Fprintf(os.Stderr, "raplscope: %v\n", err)
 		return 1
 	}
-	writeTable(os.Stdout, acc.Result())
+	return report(os.Stdout, acc.Result(), jsonOut)
+}
+
+func report(w io.Writer, res Result, jsonOut bool) int {
+	if jsonOut {
+		if err := writeJSON(w, res); err != nil {
+			fmt.Fprintf(os.Stderr, "raplscope: %v\n", err)
+			return 1
+		}
+		return 0
+	}
+	writeTable(w, res)
 	return 0
 }

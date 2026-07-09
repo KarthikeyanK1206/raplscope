@@ -81,6 +81,9 @@ flags:
 
 	_ = *jsonOut
 	_ = *csvPath
+	if len(args) > 0 {
+		return wrapMode(reader, args, *interval)
+	}
 	return monitorMode(reader, *interval, *duration)
 }
 

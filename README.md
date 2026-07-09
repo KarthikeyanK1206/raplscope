@@ -61,7 +61,9 @@ $ sudo raplscope -- zstd  -k -19 corpus.tar    # total energy 305 J, 9.8 s
 ```
 
 Same file, roughly comparable ratios — and a concrete joule count for the
-difference. `-csv power.csv` gives you the per-second power curve to plot.
+difference. `-csv power.csv` gives you the per-second power curve to plot —
+or open `docs/energy-viz.html` in a browser and drop the CSV on it for an
+interactive power/energy dashboard (it ships with an embedded demo run).
 
 ## How it works
 

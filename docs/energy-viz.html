@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>raplscope — Energy Visualization</title>
+<style>
+  .viz-root {
+    /* palette: validated reference instance (see docs/architecture.html) */
+    --surface-1:      #fcfcfb;   /* chart surface */
+    --page:           #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11, 11, 11, 0.10);
+    --series-power:   #2a78d6;   /* categorical slot 1: blue  */
+    --series-energy:  #1baf7a;   /* categorical slot 2: aqua  */
+  }
+  @media (prefers-color-scheme: dark) {
+    .viz-root {
+      --surface-1:      #1a1a19;
+      --page:           #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255, 255, 255, 0.10);
+      --series-power:   #3987e5;
+      --series-energy:  #199e70;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body.viz-root {
+    background: var(--page);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  main { max-width: 1000px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+  h1 { font-size: 1.4rem; margin: 0; }
+  h1 code { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .subtitle { color: var(--text-secondary); margin: .25rem 0 0; }
+
+  /* controls row — one row, above everything it scopes */
+  .controls {
+    display: flex; flex-wrap: wrap; align-items: center; gap: .75rem;
+    margin: 1.5rem 0 1.25rem;
+  }
+  .controls .btn {
+    font: inherit; color: var(--text-primary);
+    background: var(--surface-1);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: .45rem .9rem; cursor: pointer;
+  }
+  .controls .btn:hover { border-color: var(--text-muted); }
+  .controls .hint { color: var(--text-muted); font-size: .85rem; }
+  #status { color: var(--text-secondary); font-size: .85rem; min-height: 1.2em; margin: 0 0 .75rem; }
+  body.dragging::after {
+    content: "Drop CSV to load";
+    position: fixed; inset: 0; display: grid; place-items: center;
+    background: color-mix(in srgb, var(--page) 82%, transparent);
+    border: 3px dashed var(--text-muted);
+    font-size: 1.3rem; color: var(--text-secondary); z-index: 10;
+  }
+
+  /* KPI row of stat tiles */
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; }
+  @media (max-width: 720px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+  .tile {
+    background: var(--surface-1);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: .8rem 1rem;
+  }
+  .tile .label { color: var(--text-secondary); font-size: .82rem; }
+  .tile .value { font-size: 1.6rem; font-weight: 600; margin-top: .1rem; }
+  .tile .unit { font-size: 1rem; font-weight: 600; color: var(--text-secondary); margin-left: .15rem; }
+
+  /* chart cards */
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 1rem 1.1rem 0.6rem;
+    margin-top: 1rem;
+    position: relative;
+  }
+  .card h2 { font-size: .95rem; font-weight: 600; margin: 0; }
+  .card .desc { color: var(--text-muted); font-size: .8rem; margin: .1rem 0 .25rem; }
+  .chart svg { display: block; width: 100%; }
+  .chart svg:focus-visible { outline: 2px solid var(--series-power); outline-offset: 2px; border-radius: 6px; }
+  .tick-text { font-size: 11px; fill: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .direct-label { font-size: 11.5px; font-weight: 600; fill: var(--text-secondary); }
+
+  .tooltip {
+    position: absolute; pointer-events: none;
+    background: var(--surface-1);
+    border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, .12);
+    padding: .45rem .65rem; min-width: 8.5rem;
+    display: none; z-index: 5;
+  }
+  .tooltip .t-value { font-size: 1.05rem; font-weight: 600; }
+  .tooltip .t-row { display: flex; align-items: center; gap: .4rem; color: var(--text-secondary); font-size: .78rem; }
+  .tooltip .t-key { display: inline-block; width: 14px; height: 0; border-top: 2.5px solid; border-radius: 2px; }
+
+  /* table view — the WCAG-clean twin */
+  details.tableview {
+    margin-top: 1rem; background: var(--surface-1);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  details.tableview summary { cursor: pointer; padding: .7rem 1rem; font-weight: 600; font-size: .9rem; }
+  .tablewrap { max-height: 320px; overflow: auto; border-top: 1px solid var(--border); }
+  .tablewrap table { border-collapse: collapse; width: 100%; font-size: .82rem; }
+  .tablewrap th, .tablewrap td {
+    text-align: right; padding: .3rem .9rem;
+    font-variant-numeric: tabular-nums;
+    border-bottom: 1px solid var(--gridline);
+  }
+  .tablewrap th { position: sticky; top: 0; background: var(--surface-1); color: var(--text-secondary); font-weight: 600; }
+
+  footer { color: var(--text-muted); font-size: .82rem; margin-top: 2rem; }
+  footer code {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 5px; padding: .1em .4em;
+  }
+</style>
+</head>
+<body class="viz-root">
+<main>
+  <h1><code>raplscope</code> — energy report</h1>
+  <p class="subtitle">Power draw and cumulative energy from a <code>raplscope -csv</code> time series.</p>
+
+  <div class="controls">
+    <button class="btn" id="pick">Open CSV…</button>
+    <button class="btn" id="demo">Load demo run</button>
+    <input type="file" id="file" accept=".csv,text/csv" hidden>
+    <span class="hint">or drag a CSV anywhere on this page</span>
+  </div>
+  <p id="status" role="status"></p>
+
+  <div class="tiles">
+    <div class="tile"><div class="label">Total energy</div><div class="value" id="kpi-total"></div></div>
+    <div class="tile"><div class="label">Average power</div><div class="value" id="kpi-avg"></div></div>
+    <div class="tile"><div class="label">Peak power</div><div class="value" id="kpi-peak"></div></div>
+    <div class="tile"><div class="label">Elapsed</div><div class="value" id="kpi-elapsed"></div></div>
+  </div>
+
+  <div class="card">
+    <h2>Power draw</h2>
+    <p class="desc">watts per sampling interval</p>
+    <div class="chart" id="chart-power"></div>
+    <div class="tooltip" id="tip-power"></div>
+  </div>
+
+  <div class="card">
+    <h2>Cumulative energy</h2>
+    <p class="desc">joules since measurement start</p>
+    <div class="chart" id="chart-energy"></div>
+    <div class="tooltip" id="tip-energy"></div>
+  </div>
+
+  <details class="tableview">
+    <summary>Table view — all samples</summary>
+    <div class="tablewrap">
+      <table id="datatable">
+        <thead><tr><th>elapsed (s)</th><th>interval (s)</th><th>power (W)</th><th>cumulative (J)</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </details>
+
+  <footer>
+    Generate your own series with <code>sudo raplscope -csv run.csv -duration 30s</code>
+    (or around a command: <code>sudo raplscope -csv run.csv -- make -j8</code>), then open it here.
+    Part of the <strong>raplscope</strong> project — see <code>docs/architecture.html</code>.
+  </footer>
+</main>
+
+<script>
+"use strict";
+
+/* ---------- demo data: a real raplscope run against a phased workload ---------- */
+const DEMO_CSV = `elapsed_s,interval_s,power_w,cumulative_j
+0.501,0.501,12.39,6.202
+1.000,0.500,13.24,12.818
+1.501,0.501,12.00,18.828
+2.001,0.500,12.49,25.065
+2.500,0.500,12.76,31.443
+3.001,0.500,12.74,37.818
+3.500,0.500,11.43,43.530
+4.001,0.501,12.30,49.691
+4.500,0.499,12.71,56.037
+5.000,0.500,12.96,62.512
+5.501,0.501,12.51,68.774
+6.000,0.500,12.74,75.138
+6.500,0.500,12.62,81.444
+7.001,0.500,12.44,87.665
+7.500,0.500,13.63,94.475
+8.001,0.501,16.19,102.584
+8.501,0.499,16.95,111.051
+9.000,0.500,20.90,121.494
+9.501,0.501,23.74,133.377
+10.000,0.500,26.19,146.467
+10.501,0.501,28.35,160.664
+11.001,0.499,30.70,175.994
+11.500,0.500,33.24,192.604
+12.001,0.500,35.65,210.446
+12.500,0.500,38.38,229.620
+13.001,0.501,36.41,247.847
+13.501,0.500,42.65,269.160
+14.000,0.500,45.19,291.742
+14.501,0.500,47.42,315.464
+15.000,0.500,50.48,340.690
+15.501,0.501,52.86,367.166
+16.000,0.499,55.64,394.949
+16.501,0.501,57.02,423.498
+17.001,0.500,60.28,453.622
+17.500,0.500,62.25,484.718
+18.000,0.500,58.36,513.877
+18.501,0.501,66.64,547.254
+19.000,0.500,69.52,581.981
+19.500,0.500,71.92,617.920
+20.001,0.500,71.50,653.698
+20.500,0.500,71.51,689.420
+21.001,0.501,71.57,725.260
+21.501,0.500,72.21,761.343
+22.000,0.500,72.11,797.375
+22.501,0.501,71.54,833.201
+23.001,0.500,64.32,865.358
+23.501,0.500,72.02,901.342
+24.000,0.500,71.83,937.235
+24.501,0.500,71.17,972.840
+25.000,0.500,71.19,1008.412
+25.501,0.501,88.38,1052.673
+26.001,0.500,88.31,1096.786
+26.500,0.500,88.36,1140.934
+27.001,0.500,88.61,1185.271
+27.500,0.500,79.84,1225.164
+28.001,0.501,88.74,1269.605
+28.501,0.500,88.94,1314.055
+29.001,0.500,88.11,1358.081
+29.500,0.500,66.79,1391.461
+30.000,0.500,57.40,1420.153
+30.501,0.501,49.10,1444.742
+31.001,0.500,43.24,1466.349
+31.500,0.500,37.72,1485.198
+32.001,0.500,30.58,1500.498
+32.500,0.500,30.58,1515.776
+33.001,0.500,28.11,1529.841
+33.500,0.500,25.73,1542.693
+34.001,0.500,23.25,1554.323
+34.500,0.500,22.81,1565.718
+35.000,0.500,20.69,1576.070
+35.500,0.500,19.49,1585.809
+36.001,0.500,19.35,1595.490
+36.500,0.500,18.28,1604.629
+37.000,0.500,16.04,1612.642
+37.501,0.501,17.51,1621.414
+38.001,0.500,17.21,1630.014
+38.501,0.500,16.52,1638.270
+39.000,0.500,16.63,1646.579
+39.501,0.500,16.48,1654.824
+40.000,0.500,15.92,1662.778
+40.501,0.500,15.79,1670.676
+41.000,0.500,16.09,1678.718`;
+
+/* ---------- CSV parsing ---------- */
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 3) throw new Error("need a header plus at least 2 samples");
+  const header = lines[0].split(",").map(s => s.trim());
+  const idx = {};
+  for (const col of ["elapsed_s", "interval_s", "power_w", "cumulative_j"]) {
+    idx[col] = header.indexOf(col);
+    if (idx[col] === -1) throw new Error(`missing column "${col}" — is this a raplscope -csv file?`);
+  }
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const f = lines[i].split(",");
+    const row = {
+      elapsed: parseFloat(f[idx.elapsed_s]),
+      interval: parseFloat(f[idx.interval_s]),
+      power: parseFloat(f[idx.power_w]),
+      cumulative: parseFloat(f[idx.cumulative_j]),
+    };
+    if ([row.elapsed, row.interval, row.power, row.cumulative].some(Number.isNaN)) continue;
+    rows.push(row);
+  }
+  if (rows.length < 2) throw new Error("fewer than 2 valid samples");
+  return rows;
+}
+
+/* ---------- formatting ---------- */
+const fmtW = w => w.toFixed(1) + " W";
+const fmtJ = j => (j >= 10000 ? (j / 1000).toFixed(1) + " kJ"
+                 : j >= 100  ? Math.round(j).toLocaleString("en-US") + " J"
+                 : j.toFixed(1) + " J");
+const fmtS = s => s.toFixed(1) + " s";
+const fmtTickJ = j => (j >= 10000 ? (j / 1000) + "k" : j.toLocaleString("en-US"));
+
+/* clean tick steps: 1/2/5 × 10^k, ~4–5 ticks */
+function ticks(max, count = 4) {
+  const raw = max / count;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 5, 10].map(m => m * mag).find(s => max / s <= count + 1);
+  const out = [];
+  for (let v = 0; v <= max + 1e-9; v += step) out.push(+v.toFixed(10));
+  return out;
+}
+
+/* y-scale: clean step whose top tick is always >= the padded data max,
+   so the line can never escape the plot */
+function niceScale(max, count = 4) {
+  const raw = max / count;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 5, 10].map(m => m * mag).find(s => max / s <= count + 1.5);
+  const top = Math.ceil(max / step - 1e-9) * step;
+  const out = [];
+  for (let v = 0; v <= top + 1e-9; v += step) out.push(+v.toFixed(10));
+  return { top, ticks: out };
+}
+
+/* ---------- chart ---------- */
+const NS = "http://www.w3.org/2000/svg";
+function el(name, attrs) {
+  const n = document.createElementNS(NS, name);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  return n;
+}
+
+/*
+ * Single-series line chart with: hairline grid, 2px line, optional 10% area
+ * wash, endpoint marker + direct label, optional peak label, and a
+ * crosshair + tooltip layer (pointer and keyboard).
+ */
+function drawChart(cfg) {
+  const host = document.getElementById(cfg.host);
+  const tip = document.getElementById(cfg.tip);
+  host.textContent = "";
+
+  const W = Math.max(host.clientWidth, 320);
+  const M = { top: 26, right: 70, bottom: 34, left: 54 };
+  const H = 240 + M.top + M.bottom; // plot + axis band, never clipped
+  const pw = W - M.left - M.right, ph = H - M.top - M.bottom;
+
+  const data = cfg.data;
+  const xMax = data[data.length - 1].x;
+  const yScale = niceScale(cfg.yPad * Math.max(...data.map(d => d.y)));
+  const yMax = yScale.top;
+  const X = x => M.left + (x / xMax) * pw;
+  const Y = y => M.top + ph - (y / yMax) * ph;
+
+  const svg = el("svg", {
+    viewBox: `0 0 ${W} ${H}`, width: W, height: H,
+    tabindex: "0", role: "img", "aria-label": cfg.aria,
+  });
+
+  // grid + y ticks (solid hairlines, recessive)
+  for (const t of yScale.ticks) {
+    svg.append(el("line", {
+      x1: M.left, x2: M.left + pw, y1: Y(t), y2: Y(t),
+      stroke: t === 0 ? "var(--baseline)" : "var(--gridline)", "stroke-width": 1,
+    }));
+    const lbl = el("text", { x: M.left - 8, y: Y(t) + 3.5, "text-anchor": "end", class: "tick-text" });
+    lbl.textContent = cfg.fmtTick(t);
+    svg.append(lbl);
+  }
+  // x ticks
+  for (const t of ticks(xMax, 6)) {
+    const lbl = el("text", { x: X(t), y: M.top + ph + 18, "text-anchor": "middle", class: "tick-text" });
+    lbl.textContent = t + "s";
+    svg.append(lbl);
+  }
+
+  const pts = data.map(d => `${X(d.x).toFixed(1)},${Y(d.y).toFixed(1)}`);
+  if (cfg.area) {
+    svg.append(el("path", {
+      d: `M${M.left},${Y(0)} L` + pts.join(" L") + ` L${X(xMax)},${Y(0)} Z`,
+      fill: cfg.color, opacity: "0.1",
+    }));
+  }
+  svg.append(el("path", {
+    d: "M" + pts.join(" L"),
+    fill: "none", stroke: cfg.color, "stroke-width": 2,
+    "stroke-linejoin": "round", "stroke-linecap": "round",
+  }));
+
+  // endpoint marker: 8px dot with a 2px surface ring, plus direct label
+  const last = data[data.length - 1];
+  svg.append(el("circle", { cx: X(last.x), cy: Y(last.y), r: 6, fill: "var(--surface-1)" }));
+  svg.append(el("circle", { cx: X(last.x), cy: Y(last.y), r: 4, fill: cfg.color }));
+  const endLbl = el("text", { x: X(last.x) + 9, y: Y(last.y) + 4, class: "direct-label" });
+  endLbl.textContent = cfg.fmt(cfg.endValue !== undefined ? cfg.endValue : last.y);
+  svg.append(endLbl);
+
+  // selective extreme label (peak) — the one number the chart is about
+  if (cfg.labelPeak) {
+    let pi = 0;
+    data.forEach((d, i) => { if (d.y > data[pi].y) pi = i; });
+    const p = data[pi];
+    svg.append(el("circle", { cx: X(p.x), cy: Y(p.y), r: 5.5, fill: "var(--surface-1)" }));
+    svg.append(el("circle", { cx: X(p.x), cy: Y(p.y), r: 3.5, fill: cfg.color }));
+    const t = el("text", {
+      x: Math.min(Math.max(X(p.x), M.left + 34), M.left + pw - 34),
+      y: Y(p.y) - 10, "text-anchor": "middle", class: "direct-label",
+    });
+    t.textContent = "peak " + cfg.fmt(p.y);
+    svg.append(t);
+  }
+
+  /* ----- hover layer: crosshair finds the X; keyboard gets the same ----- */
+  const cross = el("line", {
+    y1: M.top, y2: M.top + ph, stroke: "var(--text-muted)",
+    "stroke-width": 1, visibility: "hidden",
+  });
+  const dot = el("circle", { r: 5, fill: cfg.color, stroke: "var(--surface-1)", "stroke-width": 2, visibility: "hidden" });
+  svg.append(cross, dot);
+
+  function showAt(i) {
+    const d = data[i];
+    cross.setAttribute("x1", X(d.x)); cross.setAttribute("x2", X(d.x));
+    cross.setAttribute("visibility", "visible");
+    dot.setAttribute("cx", X(d.x)); dot.setAttribute("cy", Y(d.y));
+    dot.setAttribute("visibility", "visible");
+
+    tip.textContent = "";
+    const v = document.createElement("div");
+    v.className = "t-value"; v.textContent = cfg.fmt(d.y);
+    const r = document.createElement("div");
+    r.className = "t-row";
+    const key = document.createElement("span");
+    key.className = "t-key"; key.style.borderTopColor = cfg.color;
+    const lbl = document.createElement("span");
+    lbl.textContent = `${cfg.seriesName} at ${fmtS(d.x)}`;
+    r.append(key, lbl);
+    tip.append(v, r);
+
+    tip.style.display = "block";
+    const cardBox = host.parentElement.getBoundingClientRect();
+    const svgBox = svg.getBoundingClientRect();
+    const px = svgBox.left - cardBox.left + X(d.x);
+    const flip = X(d.x) > M.left + pw * 0.72;
+    tip.style.left = (flip ? px - tip.offsetWidth - 14 : px + 14) + "px";
+    tip.style.top = (svgBox.top - cardBox.top + Y(d.y) - 14) + "px";
+  }
+  function hide() {
+    cross.setAttribute("visibility", "hidden");
+    dot.setAttribute("visibility", "hidden");
+    tip.style.display = "none";
+    active = -1;
+  }
+  function nearest(clientX) {
+    const box = svg.getBoundingClientRect();
+    const gx = ((clientX - box.left) / box.width) * W;
+    let best = 0, bestDist = Infinity;
+    data.forEach((d, i) => {
+      const dist = Math.abs(X(d.x) - gx);
+      if (dist < bestDist) { bestDist = dist; best = i; }
+    });
+    return best;
+  }
+  let active = -1;
+  svg.addEventListener("pointermove", e => { active = nearest(e.clientX); showAt(active); });
+  svg.addEventListener("pointerleave", hide);
+  svg.addEventListener("keydown", e => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    if (active === -1) active = e.key === "ArrowLeft" ? data.length - 1 : 0;
+    else active = Math.min(data.length - 1, Math.max(0, active + (e.key === "ArrowRight" ? 1 : -1)));
+    showAt(active);
+  });
+  svg.addEventListener("blur", hide);
+
+  host.append(svg);
+}
+
+/* ---------- page assembly ---------- */
+let current = null;
+
+function render() {
+  if (!current) return;
+  const rows = current;
+  const last = rows[rows.length - 1];
+  const total = last.cumulative, elapsed = last.elapsed;
+  const avg = elapsed > 0 ? total / elapsed : 0;
+  const peak = Math.max(...rows.map(r => r.power));
+
+  setKPI("kpi-total", fmtJ(total));
+  setKPI("kpi-avg", fmtW(avg));
+  setKPI("kpi-peak", fmtW(peak));
+  setKPI("kpi-elapsed", fmtS(elapsed));
+
+  drawChart({
+    host: "chart-power", tip: "tip-power",
+    data: rows.map(r => ({ x: r.elapsed, y: r.power })),
+    color: "var(--series-power)", seriesName: "power",
+    fmt: fmtW, fmtTick: t => t, yPad: 1.15,
+    area: true, labelPeak: true, endValue: last.power,
+    aria: "Line chart of power draw in watts over elapsed seconds. Data is available in the table view below.",
+  });
+  drawChart({
+    host: "chart-energy", tip: "tip-energy",
+    data: rows.map(r => ({ x: r.elapsed, y: r.cumulative })),
+    color: "var(--series-energy)", seriesName: "energy",
+    fmt: fmtJ, fmtTick: fmtTickJ, yPad: 1.06,
+    area: false, labelPeak: false,
+    aria: "Line chart of cumulative energy in joules over elapsed seconds. Data is available in the table view below.",
+  });
+
+  const tbody = document.querySelector("#datatable tbody");
+  tbody.textContent = "";
+  for (const r of rows) {
+    const tr = document.createElement("tr");
+    for (const v of [r.elapsed.toFixed(3), r.interval.toFixed(3), r.power.toFixed(2), r.cumulative.toFixed(3)]) {
+      const td = document.createElement("td");
+      td.textContent = v;
+      tr.append(td);
+    }
+    tbody.append(tr);
+  }
+}
+
+function setKPI(id, text) {
+  const node = document.getElementById(id);
+  node.textContent = "";
+  const m = text.match(/^([\d.,]+)\s*(.*)$/);
+  node.append(m[1]);
+  const u = document.createElement("span");
+  u.className = "unit"; u.textContent = m[2];
+  node.append(u);
+}
+
+function load(text, sourceName) {
+  const status = document.getElementById("status");
+  try {
+    current = parseCSV(text);
+    status.textContent = `${sourceName} — ${current.length} samples`;
+    render();
+  } catch (err) {
+    status.textContent = `Could not load ${sourceName}: ${err.message}`;
+  }
+}
+
+document.getElementById("pick").addEventListener("click", () => document.getElementById("file").click());
+document.getElementById("file").addEventListener("change", e => {
+  const f = e.target.files[0];
+  if (f) f.text().then(t => load(t, f.name));
+});
+document.getElementById("demo").addEventListener("click", () => load(DEMO_CSV, "demo run"));
+
+window.addEventListener("dragover", e => { e.preventDefault(); document.body.classList.add("dragging"); });
+window.addEventListener("dragleave", e => { if (!e.relatedTarget) document.body.classList.remove("dragging"); });
+window.addEventListener("drop", e => {
+  e.preventDefault();
+  document.body.classList.remove("dragging");
+  const f = e.dataTransfer.files[0];
+  if (f) f.text().then(t => load(t, f.name));
+});
+
+let resizeTimer;
+window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 120); });
+
+load(DEMO_CSV, "demo run");
+</script>
+</body>
+</html>

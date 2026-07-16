@@ -1,3 +1,5 @@
+![CI](https://github.com/KarthikeyanK1206/raplscope/actions/workflows/ci.yml/badge.svg)
+
 # raplscope
 
 A Linux system energy profiler. Reads Intel RAPL counters from sysfs and
